@@ -1,0 +1,7 @@
+credentials.json
+bot_token.txt
+sheet_id.txt
+__pycache__/
+*.pyc
+.env
+.DS_Store
