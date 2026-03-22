@@ -27,14 +27,8 @@ RETRY_SUFFIX = "\n\nRewrite and significantly improve this text. Do NOT return t
 
 
 def _key() -> str:
-    if os.environ.get("RAILWAY_ENVIRONMENT"):
-        return os.environ.get("GEMINI_KEY", "")
-    try:
-        base = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(base, "gemini_key.txt")) as f:
-            return f.read().strip()
-    except:
-        return ""
+    from config import GEMINI_KEY
+    return GEMINI_KEY
 
 
 MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"]

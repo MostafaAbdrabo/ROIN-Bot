@@ -58,10 +58,10 @@ def _translate_with_gemini(text, target_lang):
     """Translate text to target_lang using Gemini AI."""
     try:
         import google.generativeai as genai
-        key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gemini_key.txt")
-        with open(key_path, "r") as f:
-            api_key = f.read().strip()
-        genai.configure(api_key=api_key)
+        from config import GEMINI_KEY
+        if not GEMINI_KEY:
+            return f"[{target_lang} translation unavailable — no API key]"
+        genai.configure(api_key=GEMINI_KEY)
         model  = genai.GenerativeModel("gemini-pro")
         prompt = (f"Translate the following workplace announcement to {target_lang}. "
                   f"Keep it professional and formal. Output only the translation:\n\n{text}")

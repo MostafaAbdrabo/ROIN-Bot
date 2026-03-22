@@ -16,14 +16,8 @@ MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
 
 
 def _key() -> str:
-    if os.environ.get("RAILWAY_ENVIRONMENT"):
-        return os.environ.get("GEMINI_KEY", "")
-    try:
-        base = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(base, "gemini_key.txt")) as f:
-            return f.read().strip()
-    except Exception:
-        return ""
+    from config import GEMINI_KEY
+    return GEMINI_KEY
 
 
 def _call(system: str, user: str) -> str:

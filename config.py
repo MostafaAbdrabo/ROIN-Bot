@@ -36,11 +36,16 @@ if IS_RAILWAY:
     BOT_TOKEN = os.environ["BOT_TOKEN"]
     SHEET_ID = os.environ["SHEET_ID"]
     _creds_json = json.loads(os.environ["GOOGLE_CREDENTIALS"])
+    GEMINI_KEY = os.environ.get("GEMINI_KEY", "")
 else:
     # Local: secrets come from files in the day1 folder
     BOT_TOKEN = _read_file("bot_token.txt")
     SHEET_ID = _read_file("sheet_id.txt")
     _creds_json = None  # will use file directly
+    try:
+        GEMINI_KEY = _read_file("gemini_key.txt")
+    except FileNotFoundError:
+        GEMINI_KEY = ""
 
 
 # ---------------------------------------------------------------------------
