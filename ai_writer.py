@@ -249,3 +249,58 @@ async def improve_job_description(text: str, lang: str = "EN") -> tuple:
         return result, None
     except Exception as e:
         return text, str(e)
+
+
+# ── Translation-specific AI ──────────────────────────────────────────────────
+
+_SYSTEM_TRANSLATION = (
+    "You are a professional translator for ROIN WORLD FZE, a catering company "
+    "at El Dabaa Nuclear Power Plant, Egypt.\n\n"
+    "Rules:\n"
+    "- Translate accurately while maintaining the original meaning\n"
+    "- Use formal business language appropriate for official company documents\n"
+    "- For Arabic: use Modern Standard Arabic unless instructed otherwise\n"
+    "- For Russian: use formal business Russian\n"
+    "- Preserve any numbers, dates, employee codes, and proper nouns exactly\n"
+    "- If the text contains technical terms, translate them accurately\n"
+    "- Output ONLY the translated text. No explanations, no preamble\n"
+)
+
+
+def _translate_context_sync(text, source, target, ctx=""):
+    user_prompt = f"Translate from {source} to {target}.\n"
+    if ctx:
+        user_prompt += f"Context: {ctx}\n"
+    user_prompt += f"\nOriginal text:\n{text}"
+    return _call(_SYSTEM_TRANSLATION, user_prompt)
+
+
+def _improve_translation_sync(translation, target_lang, instruction=""):
+    system = (
+        "You are a professional translator/editor for ROIN WORLD FZE.\n"
+        "Improve the given translation to be more accurate, natural, and professional.\n"
+        "Output ONLY the improved translation. No explanations.\n"
+    )
+    user_prompt = f"Improve this {target_lang} translation.\n"
+    if instruction:
+        user_prompt += f"Instruction: {instruction}\n"
+    user_prompt += f"\nCurrent translation:\n{translation}"
+    return _call(system, user_prompt)
+
+
+async def translate_with_context(text, source, target, ctx=""):
+    """Translate with optional context. Returns (translated_text, error_msg)."""
+    try:
+        result = await asyncio.to_thread(_translate_context_sync, text, source, target, ctx)
+        return result, None
+    except Exception as e:
+        return text, str(e)
+
+
+async def improve_translation(translation, target_lang, instruction=""):
+    """Improve existing translation. Returns (improved_text, error_msg)."""
+    try:
+        result = await asyncio.to_thread(_improve_translation_sync, translation, target_lang, instruction)
+        return result, None
+    except Exception as e:
+        return translation, str(e)

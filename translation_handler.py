@@ -63,6 +63,20 @@ ST_TRANS_TEXT = 1520
 ST_TRANS_NOTES = 1521
 ST_TRANS_CONFIRM = 1522
 
+# AI Translation states (translator)
+ST_WORK_CHOICE = 1525
+ST_AI_CONTEXT   = 1530
+ST_AI_RESULT    = 1531
+ST_AI_EDIT      = 1532
+ST_AI_INSTRUCT  = 1533
+
+# Manager review states
+ST_MGR_REVIEW      = 1540
+ST_MGR_AI_INSTRUCT = 1541
+ST_MGR_AI_RESULT   = 1542
+ST_MGR_AI_EDIT     = 1543
+ST_MGR_SENDBACK    = 1545
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  HELPERS
@@ -576,7 +590,7 @@ async def trl_my_assignments(update, context):
 
 
 async def trl_work_start(update, context):
-    """Translator opens a request to submit their translation."""
+    """Translator opens a request — choose AI or manual translation."""
     q = update.callback_query
     await q.answer()
     req_id = q.data.replace("trl_work_", "")
@@ -590,11 +604,262 @@ async def trl_work_start(update, context):
     context.user_data["trl_work_rn"] = rn
 
     original = _g(rd, TL.DOC_TEXT)
+    preview = original[:500] + ("..." if len(original) > 500 else "")
+    msg = (
+        f"📋 *Translation Request {req_id}*\n"
+        f"{'─' * 28}\n"
+        f"Language: {_g(rd, TL.SOURCE_LANG)} → {_g(rd, TL.TARGET_LANG)}\n"
+        f"Deadline: {_g(rd, TL.DEADLINE)}\n\n"
+        f"📄 Original text:\n{preview}"
+    )
+    kb = []
+    import ai_writer
+    if ai_writer.ai_available():
+        kb.append([InlineKeyboardButton("🤖 Translate with AI",
+                                        callback_data=f"trl_aistart_{req_id}")])
+    kb.append([InlineKeyboardButton("✍️ Translate Manually",
+                                    callback_data=f"trl_manual_{req_id}")])
+    kb.append([_btm(), _bm()])
+    await q.edit_message_text(msg, parse_mode="Markdown",
+                              reply_markup=InlineKeyboardMarkup(kb))
+    return ST_WORK_CHOICE
+
+
+# ── Translator AI helpers ─────────────────────────────────────────────────────
+
+async def _show_ai_result(update, context, translated):
+    """Display AI translation result with action buttons."""
+    context.user_data["trl_ai_result"] = translated
+    preview = translated[:1500]
+    if len(translated) > 1500:
+        preview += "\n..."
+    msg = (
+        f"🤖 *AI Translation Result:*\n"
+        f"{'━' * 28}\n\n"
+        f"{preview}\n\n"
+        f"{'━' * 28}"
+    )
+    kb = [
+        [InlineKeyboardButton("✅ Accept Translation", callback_data="trl_ai_accept")],
+        [InlineKeyboardButton("✍️ Edit Translation",   callback_data="trl_ai_edit")],
+        [InlineKeyboardButton("💬 Give AI Instructions", callback_data="trl_ai_instr")],
+        [InlineKeyboardButton("🔄 Try Again",           callback_data="trl_ai_retry")],
+        [InlineKeyboardButton("↩️ Translate Manually",  callback_data="trl_ai_manual")],
+        [_btm(), _bm()],
+    ]
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+    else:
+        await update.message.reply_text(
+            msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+    return ST_AI_RESULT
+
+
+async def _do_ai_translate(update, context, ctx_text=""):
+    """Call Gemini to translate and show result."""
+    import ai_writer
+    req_id = context.user_data.get("trl_work_id", "")
+    rn, rd = _find_request(req_id)
+    if not rd:
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                "❌ Not found.", reply_markup=InlineKeyboardMarkup([[_bm()]]))
+        else:
+            await update.message.reply_text(
+                "❌ Not found.", reply_markup=InlineKeyboardMarkup([[_bm()]]))
+        return ConversationHandler.END
+
+    original = _g(rd, TL.DOC_TEXT)
+    source = _g(rd, TL.SOURCE_LANG)
+    target_lang = _g(rd, TL.TARGET_LANG)
+
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action="typing")
+
+    result, err = await ai_writer.translate_with_context(
+        original, source, target_lang, ctx_text)
+    if err:
+        msg = f"❌ AI error: {err}\n\nPlease try again or translate manually."
+        kb = [
+            [InlineKeyboardButton("🔄 Try Again", callback_data="trl_ai_retry")],
+            [InlineKeyboardButton("✍️ Translate Manually", callback_data="trl_ai_manual")],
+            [_btm(), _bm()],
+        ]
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                msg, reply_markup=InlineKeyboardMarkup(kb))
+        else:
+            await update.message.reply_text(
+                msg, reply_markup=InlineKeyboardMarkup(kb))
+        return ST_AI_RESULT
+
+    return await _show_ai_result(update, context, result)
+
+
+async def trl_manual_choice(update, context):
+    """Translator chose to translate manually."""
+    q = update.callback_query
+    await q.answer()
+    req_id = context.user_data.get("trl_work_id", "")
+    rn, rd = _find_request(req_id)
+    if not rd:
+        await q.edit_message_text("❌ Not found.",
+                                  reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+        return ConversationHandler.END
+    original = _g(rd, TL.DOC_TEXT)
     msg = (
         f"📝 *{req_id}*\n"
         f"{'─' * 28}\n"
-        f"{_g(rd, TL.SOURCE_LANG)} → {_g(rd, TL.TARGET_LANG)}\n"
-        f"Deadline: {_g(rd, TL.DEADLINE)}\n\n"
+        f"{_g(rd, TL.SOURCE_LANG)} → {_g(rd, TL.TARGET_LANG)}\n\n"
+        f"📄 Original text:\n{original}\n\n"
+        f"Type your translation below:"
+    )
+    await q.edit_message_text(msg, parse_mode="Markdown",
+                              reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_TRANS_TEXT
+
+
+async def trl_ai_choice(update, context):
+    """Translator chose AI — ask for context."""
+    q = update.callback_query
+    await q.answer()
+    req_id = context.user_data.get("trl_work_id", "")
+    msg = (
+        f"🤖 *AI Translation* — {req_id}\n\n"
+        f"Describe the context for better translation (optional):\n"
+        f"_Example: 'This is a formal HR letter about contract renewal'_\n\n"
+        f"Or tap Skip to translate directly."
+    )
+    kb = [
+        [InlineKeyboardButton("⏩ Skip — translate directly",
+                              callback_data="trl_ai_skip")],
+        [_btm(), _bm()],
+    ]
+    await q.edit_message_text(msg, parse_mode="Markdown",
+                              reply_markup=InlineKeyboardMarkup(kb))
+    return ST_AI_CONTEXT
+
+
+async def trl_ai_skip(update, context):
+    """Skip context — translate directly."""
+    q = update.callback_query
+    await q.answer()
+    context.user_data["trl_ai_ctx"] = ""
+    return await _do_ai_translate(update, context, "")
+
+
+async def trl_ai_context_text(update, context):
+    """Translator provided context — call AI."""
+    ctx = update.message.text.strip()
+    context.user_data["trl_ai_ctx"] = ctx
+    return await _do_ai_translate(update, context, ctx)
+
+
+async def trl_ai_accept(update, context):
+    """Accept AI translation — save and ask for notes."""
+    q = update.callback_query
+    await q.answer()
+    context.user_data["trl_translated"] = context.user_data.get("trl_ai_result", "")
+    await q.edit_message_text(
+        "✅ AI translation accepted!\n\n"
+        "📝 Any notes for the reviewer? (or type *-* to skip):",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_TRANS_NOTES
+
+
+async def trl_ai_edit_start(update, context):
+    """Start editing AI translation."""
+    q = update.callback_query
+    await q.answer()
+    ai_text = context.user_data.get("trl_ai_result", "")
+    await q.edit_message_text(
+        f"✍️ Edit the translation below and send it back:\n\n{ai_text}",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_AI_EDIT
+
+
+async def trl_ai_edit_text(update, context):
+    """Receive edited translation — save and ask for notes."""
+    edited = update.message.text.strip()
+    if len(edited) < 3:
+        await update.message.reply_text("⚠️ Translation too short. Try again:")
+        return ST_AI_EDIT
+    context.user_data["trl_translated"] = edited
+    await update.message.reply_text(
+        "✅ Translation saved!\n\n"
+        "📝 Any notes for the reviewer? (or type *-* to skip):",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_TRANS_NOTES
+
+
+async def trl_ai_instruct_start(update, context):
+    """Give AI instructions."""
+    q = update.callback_query
+    await q.answer()
+    await q.edit_message_text(
+        "💬 Type your instructions for the AI:\n"
+        "_Example: 'more formal', 'simpler words', 'use Egyptian Arabic'_",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_AI_INSTRUCT
+
+
+async def trl_ai_instruct_text(update, context):
+    """Apply AI instructions and show new result."""
+    import ai_writer
+    instruction = update.message.text.strip()
+    current = context.user_data.get("trl_ai_result", "")
+    req_id = context.user_data.get("trl_work_id", "")
+    rn, rd = _find_request(req_id)
+    if not rd:
+        await update.message.reply_text("❌ Not found.",
+                                         reply_markup=InlineKeyboardMarkup([[_bm()]]))
+        return ConversationHandler.END
+
+    target_lang = _g(rd, TL.TARGET_LANG)
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action="typing")
+
+    result, err = await ai_writer.improve_translation(
+        current, target_lang, instruction)
+    if err:
+        await update.message.reply_text(
+            f"❌ AI error: {err}\n\nTry again or edit manually.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Try Again", callback_data="trl_ai_retry")],
+                [_btm(), _bm()],
+            ]))
+        return ST_AI_RESULT
+
+    return await _show_ai_result(update, context, result)
+
+
+async def trl_ai_retry(update, context):
+    """Retry AI translation from scratch."""
+    q = update.callback_query
+    await q.answer()
+    return await _do_ai_translate(
+        update, context, context.user_data.get("trl_ai_ctx", ""))
+
+
+async def trl_ai_to_manual(update, context):
+    """Fall back to manual translation."""
+    q = update.callback_query
+    await q.answer()
+    req_id = context.user_data.get("trl_work_id", "")
+    rn, rd = _find_request(req_id)
+    if not rd:
+        await q.edit_message_text("❌ Not found.",
+                                  reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+        return ConversationHandler.END
+    original = _g(rd, TL.DOC_TEXT)
+    msg = (
+        f"📝 *{req_id}*\n"
+        f"{'─' * 28}\n"
+        f"{_g(rd, TL.SOURCE_LANG)} → {_g(rd, TL.TARGET_LANG)}\n\n"
         f"📄 Original text:\n{original}\n\n"
         f"Type your translation below:"
     )
@@ -710,7 +975,10 @@ async def trl_review_detail(update, context):
     if not rd:
         await q.edit_message_text("❌ Not found.",
                                   reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
-        return
+        return ConversationHandler.END
+
+    context.user_data["trl_rv_id"] = req_id
+    context.user_data["trl_rv_rn"] = rn
 
     original = _g(rd, TL.DOC_TEXT)[:300]
     translated = _g(rd, TL.TRANSLATED_TEXT)[:300]
@@ -728,41 +996,274 @@ async def trl_review_detail(update, context):
     if notes:
         msg += f"\n📝 Notes: {notes}\n"
 
-    kb = [
-        [InlineKeyboardButton("✅ Approve", callback_data=f"trl_approve_{req_id}"),
-         InlineKeyboardButton("🔄 Revise",  callback_data=f"trl_revise_{req_id}")],
-        [_btm(), _bm()],
-    ]
+    kb = []
+    import ai_writer
+    if ai_writer.ai_available():
+        kb.append([InlineKeyboardButton("🤖 Improve with AI",
+                                        callback_data=f"trl_mgr_ai_{req_id}")])
+    kb.append([InlineKeyboardButton("✅ Approve",
+                                    callback_data=f"trl_approve_{req_id}")])
+    kb.append([InlineKeyboardButton("📝 Send Back to Translator",
+                                    callback_data=f"trl_sendback_{req_id}")])
+    kb.append([_btm(), _bm()])
     await q.edit_message_text(msg, parse_mode="Markdown",
                               reply_markup=InlineKeyboardMarkup(kb))
+    return ST_MGR_REVIEW
 
 
-async def trl_review_action(update, context):
+async def trl_approve_conv(update, context):
+    """Approve translation from review ConversationHandler."""
     q = update.callback_query
     await q.answer()
-    approved = "approve" in q.data
-    req_id = q.data.replace("trl_approve_", "").replace("trl_revise_", "")
+    req_id = q.data.replace("trl_approve_", "")
     ec, _ = _get_emp_info(str(q.from_user.id))
     rn, _ = _find_request(req_id)
     if not rn:
         await q.edit_message_text("❌ Not found.",
                                   reply_markup=InlineKeyboardMarkup([[_bm()]]))
-        return
+        return ConversationHandler.END
 
     now_str = _now()
     _update_tl(rn, TL.REVIEWER,      ec or "")
     _update_tl(rn, TL.REVIEW_DATE,   now_str)
-    _update_tl(rn, TL.REVIEW_STATUS, "Approved" if approved else "Revision")
-    _update_tl(rn, TL.STATUS,        "Approved" if approved else "Assigned")
+    _update_tl(rn, TL.REVIEW_STATUS, "Approved")
+    _update_tl(rn, TL.STATUS,        "Approved")
 
-    if approved:
-        await q.edit_message_text(
-            f"✅ {req_id} approved! Translation complete.",
-            reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    await q.edit_message_text(
+        f"✅ {req_id} approved! Translation complete.",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ConversationHandler.END
+
+
+# ── Manager AI + Send-Back handlers ──────────────────────────────────────────
+
+async def _show_mgr_ai_result(update, context, improved):
+    """Show AI improvement result with action buttons."""
+    context.user_data["trl_mgr_ai_text"] = improved
+    preview = improved[:1500]
+    if len(improved) > 1500:
+        preview += "\n..."
+    msg = (
+        f"🤖 *AI Improved Translation:*\n"
+        f"{'━' * 28}\n\n"
+        f"{preview}\n\n"
+        f"{'━' * 28}"
+    )
+    kb = [
+        [InlineKeyboardButton("✅ Use This",           callback_data="trl_mgr_ai_use")],
+        [InlineKeyboardButton("✍️ Edit",               callback_data="trl_mgr_ai_edit")],
+        [InlineKeyboardButton("💬 Give Instructions",  callback_data="trl_mgr_ai_instr")],
+        [InlineKeyboardButton("🔄 Try Again",          callback_data="trl_mgr_ai_retry")],
+        [InlineKeyboardButton("↩️ Keep Original",      callback_data="trl_mgr_ai_keep")],
+        [_btm(), _bm()],
+    ]
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
     else:
-        await q.edit_message_text(
-            f"🔄 {req_id} sent back for revision.",
-            reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+        await update.message.reply_text(
+            msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+    return ST_MGR_AI_RESULT
+
+
+async def _do_mgr_ai(update, context, instruction=""):
+    """Call AI to improve translation and show result."""
+    import ai_writer
+    req_id = context.user_data.get("trl_mgr_ai_id", "")
+    rn, rd = _find_request(req_id)
+    if not rd:
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                "❌ Not found.", reply_markup=InlineKeyboardMarkup([[_bm()]]))
+        else:
+            await update.message.reply_text(
+                "❌ Not found.", reply_markup=InlineKeyboardMarkup([[_bm()]]))
+        return ConversationHandler.END
+
+    translated = _g(rd, TL.TRANSLATED_TEXT)
+    target_lang = _g(rd, TL.TARGET_LANG)
+
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action="typing")
+
+    result, err = await ai_writer.improve_translation(
+        translated, target_lang, instruction)
+    if err:
+        msg = f"❌ AI error: {err}\n\nPlease try again or keep original."
+        kb = [
+            [InlineKeyboardButton("🔄 Try Again",     callback_data="trl_mgr_ai_retry")],
+            [InlineKeyboardButton("↩️ Keep Original", callback_data="trl_mgr_ai_keep")],
+            [_btm(), _bm()],
+        ]
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                msg, reply_markup=InlineKeyboardMarkup(kb))
+        else:
+            await update.message.reply_text(
+                msg, reply_markup=InlineKeyboardMarkup(kb))
+        return ST_MGR_AI_RESULT
+
+    return await _show_mgr_ai_result(update, context, result)
+
+
+async def trl_mgr_ai_start(update, context):
+    """Manager chose Improve with AI — ask for instructions."""
+    q = update.callback_query
+    await q.answer()
+    req_id = q.data.replace("trl_mgr_ai_", "")
+    context.user_data["trl_mgr_ai_id"] = req_id
+    msg = (
+        f"🤖 *Improve Translation* — {req_id}\n\n"
+        f"Give specific instructions (optional):\n"
+        f"_Example: 'more formal', 'simpler words', 'use Egyptian dialect'_\n\n"
+        f"Or tap Skip to improve automatically."
+    )
+    kb = [
+        [InlineKeyboardButton("⏩ Skip — improve automatically",
+                              callback_data="trl_mgr_ai_skip")],
+        [_btm(), _bm()],
+    ]
+    await q.edit_message_text(msg, parse_mode="Markdown",
+                              reply_markup=InlineKeyboardMarkup(kb))
+    return ST_MGR_AI_INSTRUCT
+
+
+async def trl_mgr_ai_skip(update, context):
+    """Skip instructions — improve directly."""
+    q = update.callback_query
+    await q.answer()
+    return await _do_mgr_ai(update, context, "")
+
+
+async def trl_mgr_ai_instruct_text(update, context):
+    """Manager provided instructions — call AI."""
+    instruction = update.message.text.strip()
+    return await _do_mgr_ai(update, context, instruction)
+
+
+async def trl_mgr_ai_use(update, context):
+    """Use AI improvement — save to sheet."""
+    q = update.callback_query
+    await q.answer()
+    req_id = context.user_data.get("trl_mgr_ai_id", "")
+    improved = context.user_data.get("trl_mgr_ai_text", "")
+    rn, _ = _find_request(req_id)
+    if rn and improved:
+        _update_tl(rn, TL.TRANSLATED_TEXT, improved)
+    await q.edit_message_text(
+        f"✅ Translation updated for {req_id}.\n"
+        f"Return to review to approve or continue editing.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔍 Review Again",
+                                  callback_data=f"trl_rv_{req_id}")],
+            [_btm()],
+        ]))
+    return ConversationHandler.END
+
+
+async def trl_mgr_ai_edit_start(update, context):
+    """Start editing AI improvement."""
+    q = update.callback_query
+    await q.answer()
+    ai_text = context.user_data.get("trl_mgr_ai_text", "")
+    await q.edit_message_text(
+        f"✍️ Edit the improved translation and send it back:\n\n{ai_text}",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_MGR_AI_EDIT
+
+
+async def trl_mgr_ai_edit_text(update, context):
+    """Receive edited text — save to sheet."""
+    edited = update.message.text.strip()
+    req_id = context.user_data.get("trl_mgr_ai_id", "")
+    rn, _ = _find_request(req_id)
+    if rn and edited:
+        _update_tl(rn, TL.TRANSLATED_TEXT, edited)
+    await update.message.reply_text(
+        f"✅ Translation updated for {req_id}.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔍 Review Again",
+                                  callback_data=f"trl_rv_{req_id}")],
+            [_btm()],
+        ]))
+    return ConversationHandler.END
+
+
+async def trl_mgr_ai_instr_start(update, context):
+    """Give more AI instructions."""
+    q = update.callback_query
+    await q.answer()
+    await q.edit_message_text(
+        "💬 Type your instructions for the AI:\n"
+        "_Example: 'more formal', 'simpler words'_",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_MGR_AI_INSTRUCT
+
+
+async def trl_mgr_ai_retry(update, context):
+    """Retry AI improvement."""
+    q = update.callback_query
+    await q.answer()
+    return await _do_mgr_ai(update, context, "")
+
+
+async def trl_mgr_ai_keep(update, context):
+    """Keep original — return to review."""
+    q = update.callback_query
+    await q.answer()
+    req_id = context.user_data.get("trl_mgr_ai_id", "")
+    await q.edit_message_text(
+        f"↩️ Keeping original translation for {req_id}.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔍 Back to Review",
+                                  callback_data=f"trl_rv_{req_id}")],
+            [_btm()],
+        ]))
+    return ConversationHandler.END
+
+
+async def trl_sendback_start(update, context):
+    """Manager sends back to translator — ask for feedback."""
+    q = update.callback_query
+    await q.answer()
+    req_id = q.data.replace("trl_sendback_", "")
+    context.user_data["trl_sendback_id"] = req_id
+    await q.edit_message_text(
+        f"📝 *Send Back — {req_id}*\n\n"
+        f"Type your feedback for the translator:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ST_MGR_SENDBACK
+
+
+async def trl_sendback_text(update, context):
+    """Manager typed feedback — save and send back."""
+    feedback = update.message.text.strip()
+    if len(feedback) < 2:
+        await update.message.reply_text("⚠️ Please type your feedback:")
+        return ST_MGR_SENDBACK
+
+    req_id = context.user_data.get("trl_sendback_id", "")
+    rn, _ = _find_request(req_id)
+    if not rn:
+        await update.message.reply_text("❌ Not found.",
+                                         reply_markup=InlineKeyboardMarkup([[_bm()]]))
+        return ConversationHandler.END
+
+    ec, _ = _get_emp_info(str(update.effective_user.id))
+    now_str = _now()
+    _update_tl(rn, TL.REVIEWER,      ec or "")
+    _update_tl(rn, TL.REVIEW_DATE,   now_str)
+    _update_tl(rn, TL.REVIEW_STATUS, "Revision")
+    _update_tl(rn, TL.STATUS,        "Assigned")
+    _update_tl(rn, TL.NOTES,         f"Manager feedback: {feedback}")
+
+    await update.message.reply_text(
+        f"🔄 {req_id} sent back to translator.\n"
+        f"📝 Feedback: {feedback}",
+        reply_markup=InlineKeyboardMarkup([[_btm(), _bm()]]))
+    return ConversationHandler.END
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -894,10 +1395,31 @@ def get_translation_handlers():
         allow_reentry=True,
     )
 
-    # Translator work flow
+    # Translator work flow (with AI translation option)
     work_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(trl_work_start, pattern="^trl_work_")],
         states={
+            ST_WORK_CHOICE: [
+                CallbackQueryHandler(trl_manual_choice, pattern="^trl_manual_"),
+                CallbackQueryHandler(trl_ai_choice,     pattern="^trl_aistart_"),
+            ],
+            ST_AI_CONTEXT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, trl_ai_context_text),
+                CallbackQueryHandler(trl_ai_skip, pattern="^trl_ai_skip$"),
+            ],
+            ST_AI_RESULT: [
+                CallbackQueryHandler(trl_ai_accept,         pattern="^trl_ai_accept$"),
+                CallbackQueryHandler(trl_ai_edit_start,     pattern="^trl_ai_edit$"),
+                CallbackQueryHandler(trl_ai_instruct_start, pattern="^trl_ai_instr$"),
+                CallbackQueryHandler(trl_ai_retry,          pattern="^trl_ai_retry$"),
+                CallbackQueryHandler(trl_ai_to_manual,      pattern="^trl_ai_manual$"),
+            ],
+            ST_AI_EDIT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, trl_ai_edit_text),
+            ],
+            ST_AI_INSTRUCT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, trl_ai_instruct_text),
+            ],
             ST_TRANS_TEXT:    [MessageHandler(filters.TEXT & ~filters.COMMAND, trl_trans_text_inp)],
             ST_TRANS_NOTES:  [MessageHandler(filters.TEXT & ~filters.COMMAND, trl_trans_notes_inp)],
             ST_TRANS_CONFIRM:[CallbackQueryHandler(trl_trans_confirm, pattern="^trl_wk_")],
@@ -909,7 +1431,41 @@ def get_translation_handlers():
         allow_reentry=True,
     )
 
-    return [request_conv, assign_conv, work_conv]
+    # Manager review flow (with AI improvement + send-back)
+    review_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(trl_review_detail, pattern="^trl_rv_")],
+        states={
+            ST_MGR_REVIEW: [
+                CallbackQueryHandler(trl_approve_conv,   pattern="^trl_approve_"),
+                CallbackQueryHandler(trl_mgr_ai_start,   pattern="^trl_mgr_ai_"),
+                CallbackQueryHandler(trl_sendback_start,  pattern="^trl_sendback_"),
+            ],
+            ST_MGR_AI_INSTRUCT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, trl_mgr_ai_instruct_text),
+                CallbackQueryHandler(trl_mgr_ai_skip, pattern="^trl_mgr_ai_skip$"),
+            ],
+            ST_MGR_AI_RESULT: [
+                CallbackQueryHandler(trl_mgr_ai_use,        pattern="^trl_mgr_ai_use$"),
+                CallbackQueryHandler(trl_mgr_ai_edit_start, pattern="^trl_mgr_ai_edit$"),
+                CallbackQueryHandler(trl_mgr_ai_instr_start, pattern="^trl_mgr_ai_instr$"),
+                CallbackQueryHandler(trl_mgr_ai_retry,      pattern="^trl_mgr_ai_retry$"),
+                CallbackQueryHandler(trl_mgr_ai_keep,       pattern="^trl_mgr_ai_keep$"),
+            ],
+            ST_MGR_AI_EDIT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, trl_mgr_ai_edit_text),
+            ],
+            ST_MGR_SENDBACK: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, trl_sendback_text),
+            ],
+        },
+        fallbacks=[
+            CallbackQueryHandler(trl_cancel, pattern="^back_to_menu$"),
+            CallbackQueryHandler(trl_cancel, pattern="^menu_translation$"),
+        ],
+        allow_reentry=True,
+    )
+
+    return [request_conv, assign_conv, work_conv, review_conv]
 
 
 def get_translation_static_handlers():
@@ -923,9 +1479,6 @@ def get_translation_static_handlers():
         CQH(trl_assign_list,           pattern="^trl_assign_list$"),
         CQH(trl_my_assignments,        pattern="^trl_my_assign$"),
         CQH(trl_review,                pattern="^trl_review$"),
-        CQH(trl_review_detail,         pattern="^trl_rv_"),
-        CQH(trl_review_action,         pattern="^trl_approve_"),
-        CQH(trl_review_action,         pattern="^trl_revise_"),
         CQH(trl_all_handler,           pattern="^trl_all$"),
         CQH(trl_dashboard,             pattern="^trl_dashboard$"),
         CQH(trl_my_stats,              pattern="^trl_my_stats$"),
