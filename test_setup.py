@@ -10,7 +10,7 @@ print("=" * 50)
 # Test 1: Check all libraries
 print("\n[1/5] Checking Python libraries...")
 errors = []
-for lib in ["telegram", "gspread", "google.oauth2", "bcrypt", "fpdf", "anthropic"]:
+for lib in ["telegram", "gspread", "google.oauth2", "bcrypt", "fpdf", "google.generativeai"]:
     try:
         __import__(lib)
         print(f"  OK  {lib}")

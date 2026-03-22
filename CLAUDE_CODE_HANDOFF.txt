@@ -1,0 +1,128 @@
+I am building a Telegram HR bot for ROIN WORLD FZE.
+600 employees. Google Sheets as database. Python 3.14 on Mac.
+I am a complete beginner — zero coding experience.
+Hosted on Railway free tier.
+
+READ ALL FILES IN THIS FOLDER FIRST before responding.
+Also read SESSION_2_HANDOFF_PROMPT.txt and BACK_BUTTON_RULE.md in the project folder at /mnt/project/ or same directory.
+
+====================================================================
+CURRENT STATE — WHAT IS ALREADY BUILT AND WORKING
+====================================================================
+
+FILES IN THIS FOLDER (day1/):
+- bot.py — Main bot v9.1 with 6 roles
+- leave_request.py — Leave system v10 with Business Trip
+- approval_handler.py — Categorized pending approvals
+- attendance_handler.py — ZKTeco upload + attendance processing v4
+- pdf_generator.py — fpdf2 PDF generation with company logo
+- config.py — Dual mode (local/Railway)
+- credentials.json, bot_token.txt, sheet_id.txt — secrets (LOCAL ONLY)
+- company_logo.png — PDF header logo
+- generate_hashes.py, test_setup.py — utilities from Session 1
+- requirements.txt — must include: python-telegram-bot, gspread, bcrypt, fpdf2, google-api-python-client, google-auth, xlrd, openpyxl, python-calamine
+- Procfile, runtime.txt, .gitignore — Railway deployment files
+
+WORKING FEATURES:
+1. Login: employee code + bcrypt password + Telegram ID binding
+2. Role-based menus: Employee, Supervisor, Direct_Manager, HR_Staff, HR_Manager, Director
+3. Leave request (self): Paid, Sick, Emergency, Unpaid, Business_Trip
+4. Leave request for employee (Supervisor/Manager/HR submits on behalf)
+5. Categorized pending approvals: Manager → HR → Director chain
+6. My Requests: Previous/Upcoming → list → detail → PDF download
+7. Team Requests: same structure
+8. PDF generation: company logo, approval chain with names, auto-upload to Google Drive
+9. Attendance: upload ZKTeco .xls/.xlsx/.csv/.zip → extract → Raw_ZKT → process → write P/A/V/S/U/B/OFF/H
+10. Multi-tab support: one .xlsx file with 4 branch tabs (Russian Kitchen, Egyptian Kitchen, Bakery, Office)
+11. Branch auto-detection from filename/tab name
+12. In_Branch / Out_Branch tracking
+
+BUSINESS TRIP RULES:
+- Same approval chain as other leave types
+- Past dates allowed (up to 2 days after trip ends)
+- Not deducted from leave balance
+- Attendance shows "B" for approved Business Trip days
+
+====================================================================
+CRITICAL TECHNICAL DETAILS
+====================================================================
+
+Google Sheet ID: 1-N3Ge3RZGf6ie9YNbYlur4sQOMVGQQ3rgG1lMMThpkk
+Service account: roin-hr-bot@roin-hr-bot.iam.gserviceaccount.com
+Attendance Sheet ID: 1_GEamKcub5g8zUXryHJ8PVHydA3hKSFV88hUt98fCTw
+
+Employee codes are NUMERIC (1007, 1008, etc.) — NOT "EMP-001"
+Python 3.14 requires asyncio.run(main()) pattern
+Standard app.run_polling() does NOT work
+
+6 ROLES: Employee, Supervisor, Direct_Manager, HR_Staff, HR_Manager, Director
+5 LEAVE TYPES: Paid, Sick, Emergency, Unpaid, Business_Trip
+2 APPROVAL CHAINS: MGR_HR (Manager → HR), MGR_HR_DIR (Manager → HR → Director)
+
+ATTENDANCE STATUS CODES: P, A, V (vacation), S (sick), U (unpaid), B (business trip), OFF, H (holiday)
+
+Attendance sheet layout:
+- Row 6 = headers (day numbers 1-31)
+- Row 7+ = employee data
+- Column C = employee code
+- Column F = day 1, column G = day 2, etc.
+
+Drive upload uses Apps Script middleman (service accounts can't upload to free Gmail Drive):
+URL: https://script.google.com/macros/s/AKfycbxKtTNn_1TRofVi_QUGoF6aMOVJdmzs4LyMksvaIVg2j_lzadK0VJ-vrUwM0ss72FEIpA/exec
+
+ZKTeco files: non-standard .xls format. xlrd crashes on large files. Solution: user copies data into Numbers → saves as .xlsx → sends to bot. Bot uses openpyxl for .xlsx, calamine for .xls (with fallback).
+
+BACK BUTTON RULE: Every screen must have ↩️ Back + ↩️ Main Menu buttons. No exceptions. See BACK_BUTTON_RULE.md.
+
+====================================================================
+WHAT NEEDS TO BE BUILT NEXT (in priority order)
+====================================================================
+
+1. ADD Off_Type COLUMN TO Employee_DB
+   - New column: Off_Type with values: Rotating, Friday, Friday_2ndSat
+   - Rotating = 23 work / 7 off (no fixed day off)
+   - Friday = Friday only off
+   - Friday_2ndSat = Friday + 2nd Saturday off (default if blank)
+   - Processing logic already handles this in attendance_handler.py
+   - Just needs the column added to the Google Sheet
+
+2. MISSING PUNCH REQUEST TYPE
+   - Employee forgot to punch in or out
+   - Has until next day to submit "Missing Punch" request
+   - Follows MGR_HR or MGR_HR_DIR approval chain
+   - If fully approved → attendance becomes P
+   - If not approved → stays A
+
+3. EARLY DEPARTURE REQUEST TYPE
+   - Employee leaves before shift ends
+   - Max 2 per month (bot enforces)
+   - Approval chain: Manager → HR only (no Director)
+   - If approved and covers the gap → P in attendance
+
+4. OVERTIME REQUEST TYPE
+   - Planned OT: 24hr advance notice, Manager → HR
+   - Emergency OT: Employee reports → Manager → HR
+   - Max 4hrs/day, 12hrs/week, 40hrs/month
+   - OT rate: 1.5x or 2x (configurable)
+
+5. DEPLOY TO RAILWAY
+   - Currently running locally
+   - Railway deployment was set up in Session 1 but stopped
+
+====================================================================
+HOW TO WORK WITH ME
+====================================================================
+
+- Complete beginner — explain every step
+- Uses Mac with python3, pip3
+- Uses VS Code as editor
+- Give ONE terminal command at a time
+- Provide COMPLETE files — never ask me to manually edit code
+- If I paste an error, fix it immediately
+- Default language: English
+- MANDATORY: Every screen must have ↩️ Back + ↩️ Main Menu buttons
+- When the next step is running the bot: python3 bot.py
+
+====================================================================
+START: Read all files, confirm what you see, then begin with item #1.
+====================================================================
