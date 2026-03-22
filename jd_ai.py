@@ -1,7 +1,7 @@
 """
 ROIN WORLD FZE — Gemini AI for JD text improvement
 ====================================================
-Model  : gemini-2.0-flash
+Model  : gemini-2.5-pro-exp-03-25
 Key    : gemini_key.txt (local) or GEMINI_KEY env var (Railway)
 All functions are async and degrade gracefully if the key is not set.
 
@@ -31,7 +31,7 @@ def _key() -> str:
     return GEMINI_KEY
 
 
-MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+MODELS = ["gemini-2.5-pro-exp-03-25"]
 
 
 def _call(system: str, user: str) -> str:

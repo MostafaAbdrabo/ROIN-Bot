@@ -12,7 +12,7 @@ Functions:
 
 import os, asyncio
 
-MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+MODELS = ["gemini-2.5-pro-exp-03-25"]
 
 
 def _key() -> str:

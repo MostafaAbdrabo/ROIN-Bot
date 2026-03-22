@@ -62,7 +62,7 @@ def _translate_with_gemini(text, target_lang):
         if not GEMINI_KEY:
             return f"[{target_lang} translation unavailable — no API key]"
         genai.configure(api_key=GEMINI_KEY)
-        model  = genai.GenerativeModel("gemini-pro")
+        model  = genai.GenerativeModel("gemini-2.5-pro-exp-03-25")
         prompt = (f"Translate the following workplace announcement to {target_lang}. "
                   f"Keep it professional and formal. Output only the translation:\n\n{text}")
         resp = model.generate_content(prompt)
