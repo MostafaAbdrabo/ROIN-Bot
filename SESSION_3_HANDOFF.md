@@ -44,7 +44,7 @@ Master Google Sheet ID: 1mqHdGhuiL36l6ByAVwFXsj95R3iCatS5V7Gg29jZOPQ
 Master Google Sheet URL: https://docs.google.com/spreadsheets/d/1mqHdGhuiL36l6ByAVwFXsj95R3iCatS5V7Gg29jZOPQ
 Attendance Google Sheet ID: 1_GEamKcub5g8zUXryHJ8PVHydA3hKSFV88hUt98fCTw
 Service account: roin-hr-bot@roin-hr-bot.iam.gserviceaccount.com
-Apps Script URL: https://script.google.com/macros/s/AKfycbxKtTNn_1TRofVi_QUGoF6aMOVJdmzs4LyMksvaIVg2j_lzadK0VJ-vrUwM0ss72FEIpA/exec
+Apps Script URL: https://script.google.com/macros/s/AKfycbweudcj7vcQ3n6XE8fgkI__9K7Vi57Gc1_1ATu5CtVos07NaI9TR_YpH66PEU_dIqvm/exec
 Employee Folders Parent: 14hfkfjC-9qu8KrvAhFZw8a5H1JN8FgXx
 
 Drive Folders: (see config.py DRIVE_FOLDERS for full list — 40+ folder IDs)

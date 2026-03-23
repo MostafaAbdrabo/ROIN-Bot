@@ -965,7 +965,7 @@ def _upload_to_drive(pdf_bytes, filename, folder_id):
     import urllib.request
     import json
 
-    APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxKtTNn_1TRofVi_QUGoF6aMOVJdmzs4LyMksvaIVg2j_lzadK0VJ-vrUwM0ss72FEIpA/exec"
+    APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbweudcj7vcQ3n6XE8fgkI__9K7Vi57Gc1_1ATu5CtVos07NaI9TR_YpH66PEU_dIqvm/exec"
 
     try:
         print(f"[DRIVE] Uploading {filename} to folder {folder_id} via Apps Script")

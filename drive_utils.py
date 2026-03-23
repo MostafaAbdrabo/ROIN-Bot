@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 APPS_SCRIPT_URL = (
     "https://script.google.com/macros/s/"
-    "AKfycbxKtTNn_1TRofVi_QUGoF6aMOVJdmzs4LyMksvaIVg2j_lzadK0VJ-vrUwM0ss72FEIpA/exec"
+    "AKfycbweudcj7vcQ3n6XE8fgkI__9K7Vi57Gc1_1ATu5CtVos07NaI9TR_YpH66PEU_dIqvm/exec"
 )
 
 
