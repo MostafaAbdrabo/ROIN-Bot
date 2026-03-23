@@ -24,28 +24,39 @@ User's role: HR Specialist — owns all HR systems, complete beginner in coding
 # 2. TECHNOLOGY STACK
 ====================================================================
 
-- Google Sheets: all databases — one master workbook (41+ tabs)
-- Google Drive: all documents and PDFs (organized by category/year/month)
+- Google Sheets: all databases — one master workbook (68+ tabs, audited 23/03/2026)
+- Google Drive: all documents and PDFs (organized by department folders + employee personal folders)
 - Telegram Bot: ONE bot for ALL tasks, role-based access
-- Python 3.14 on Mac (asyncio.run pattern required — app.run_polling() DOES NOT work)
-- Railway free tier for deployment (currently running locally)
+- Python 3.11 on Railway (runtime.txt = python-3.11)
+- Railway: deployed via GitHub auto-deploy (push to main → auto-deploy)
 - fpdf2: PDF generation with DejaVu font for Cyrillic support
-- Google Gemini API: ALL AI features (translation, text improvement, screening)
-- Google Apps Script: Drive upload middleman (service accounts can't upload to free Gmail Drive)
+- pypdf: PDF merging for bulk export
+- Google Gemini API: ALL AI features — model: gemini-2.5-pro-exp-03-25
+- Google Apps Script: Drive upload + folder creation middleman
 - bcrypt: password hashing (salt rounds = 12)
+- gspread + google-auth: Google Sheets/Drive API access
 
 ====================================================================
 # 3. CRITICAL IDs AND CREDENTIALS
 ====================================================================
 
-Master Google Sheet ID: 1dbJD7QgShUoBVHVZQT9EbZNUFMVakTpTHC-q9gxig2w
+Master Google Sheet ID: 1mqHdGhuiL36l6ByAVwFXsj95R3iCatS5V7Gg29jZOPQ
+Master Google Sheet URL: https://docs.google.com/spreadsheets/d/1mqHdGhuiL36l6ByAVwFXsj95R3iCatS5V7Gg29jZOPQ
 Attendance Google Sheet ID: 1_GEamKcub5g8zUXryHJ8PVHydA3hKSFV88hUt98fCTw
 Service account: roin-hr-bot@roin-hr-bot.iam.gserviceaccount.com
 Apps Script URL: https://script.google.com/macros/s/AKfycbxKtTNn_1TRofVi_QUGoF6aMOVJdmzs4LyMksvaIVg2j_lzadK0VJ-vrUwM0ss72FEIpA/exec
+Employee Folders Parent: 14hfkfjC-9qu8KrvAhFZw8a5H1JN8FgXx
 
-Drive Folders:
-- Drafts (non-approved docs): 1Z4ADgTWuqSaypOrNhv5Q0vkMyHrFokG5
-- Approved documents: 1rol_SQCWW9kLGedFwXuFvw61dN61qT7Z
+Drive Folders: (see config.py DRIVE_FOLDERS for full list — 40+ folder IDs)
+
+GitHub Repo: https://github.com/MostafaAbdrabo/ROIN-Bot (private)
+Railway: auto-deploys on push to main
+
+Railway Environment Variables:
+- BOT_TOKEN (Telegram bot token)
+- SHEET_ID = 1mqHdGhuiL36l6ByAVwFXsj95R3iCatS5V7Gg29jZOPQ
+- GOOGLE_CREDENTIALS (full JSON content of credentials.json)
+- GEMINI_KEY (Google Gemini API key)
 
 Employee codes: NUMERIC (1007, 1049, 2393, etc.) — NOT "EMP-001"
 Test user: 1007 (Sokolov Aleksei) — role Bot_Manager — password Pass@1007
