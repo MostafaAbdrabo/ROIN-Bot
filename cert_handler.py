@@ -242,7 +242,8 @@ async def cert_emp_lang_sel(update, context):
             await q.edit_message_text("❌ Employee record not found.",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Back", callback_data="menu_certificates"), bm()]])); return ConversationHandler.END
         pdf_bytes = _generate_employment_cert(emp, lang)
-        filename  = f"{ec}-Employment-{datetime.now().strftime('%d%m%Y')}.pdf"
+        from drive_utils import make_pdf_filename
+        filename  = make_pdf_filename("certificate", f"CERT-{ec}", ec)
         from drive_utils import upload_and_archive
         drive_url = upload_and_archive(pdf_bytes, filename, "certificates",
                                        emp_code=ec, emp_name=emp.get("Full_Name", ""))

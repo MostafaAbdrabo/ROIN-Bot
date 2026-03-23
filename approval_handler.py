@@ -332,9 +332,12 @@ async def _send_final_pdfs(context, rn, rd, rid, ec, lt, chain, now, bm_approver
 
         # Upload PDFs to Drive (approved → also archive to employee folder)
         from drive_utils import upload_and_archive
-        cert_url  = upload_and_archive(cert_bytes, f"LeaveApproval_{rid}.pdf",
-                                       "leave_approvals", emp_code=ec, emp_name=emp_name)
-        order_url = upload_and_archive(order_bytes, f"LeaveOrder_{order_num}_{ec}.pdf",
+        from drive_utils import make_pdf_filename
+        cert_fn  = make_pdf_filename(leave_type, rid, ec)
+        cert_url = upload_and_archive(cert_bytes, cert_fn,
+                                      "leave_approvals", emp_code=ec, emp_name=emp_name)
+        order_fn = make_pdf_filename("rasporya", order_num, ec) if order_bytes else ""
+        order_url = upload_and_archive(order_bytes, order_fn,
                                        "leave_orders", emp_code=ec, emp_name=emp_name) if order_bytes else None
 
         # Save Drive links back to Leave_Log so they appear in Requests menu

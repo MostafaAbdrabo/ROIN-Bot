@@ -1600,7 +1600,9 @@ async def dir_memo_approve_handler(update, context):
         # Upload final PDF to approved folder
         sz_num = memo_data.get("sz_number", memo_id).replace("/", "-").replace(" ", "_")
         from drive_utils import upload_and_archive
-        drive_url = upload_and_archive(pdf_bytes, f"{sz_num}_APPROVED.pdf", "memo_approved",
+        from drive_utils import make_pdf_filename
+        memo_fn = make_pdf_filename("memo", sz_num.replace("/", "-").replace(" ", "_"), ec)
+        drive_url = upload_and_archive(pdf_bytes, memo_fn, "memo_approved",
                                        emp_code=ec, emp_name=memo_data.get("requester_name", ""))
         if drive_url:
             _update_memo_cell(rn, 24, drive_url)   # Drive_Link col

@@ -160,6 +160,82 @@ def _count_dept(dept):
     return n
 
 
+def _check_headcount(dept, job_title, num_positions):
+    """Smart headcount validation. Returns (allowed, msg, upcoming_vacancies)."""
+    try:
+        hc_rows = get_sheet("Department_Headcount").get_all_records()
+    except Exception:
+        return True, "Headcount tab not found — skipping validation.", []
+
+    max_allowed = None
+    for r in hc_rows:
+        if (str(r.get("Department", "")).strip().lower() == dept.strip().lower()
+                and str(r.get("Job_Title", "")).strip().lower() == job_title.strip().lower()):
+            try:
+                max_allowed = int(r.get("Max_Allowed", 0))
+            except (ValueError, TypeError):
+                max_allowed = None
+            break
+
+    if max_allowed is None:
+        return True, f"No headcount limit found for {dept} / {job_title}.", []
+
+    current = 0
+    try:
+        for r in get_sheet(TAB_EMPLOYEE_DB).get_all_records():
+            if (str(r.get("Department", "")).strip().lower() == dept.strip().lower()
+                    and str(r.get("Job_Title", "")).strip().lower() == job_title.strip().lower()
+                    and str(r.get("Status", "")).strip() == "Active"):
+                current += 1
+    except Exception:
+        pass
+
+    available = max_allowed - current
+    num = int(num_positions)
+
+    if available >= num:
+        return True, f"✅ Headcount allows this request. Current: {current} / Max: {max_allowed}.", []
+
+    # Check planned resignations
+    upcoming = []
+    try:
+        from datetime import timedelta
+        cutoff = datetime.now() + timedelta(days=90)
+        for r in get_sheet(TAB_EMPLOYEE_DB).get_all_records():
+            if (str(r.get("Department", "")).strip().lower() == dept.strip().lower()
+                    and str(r.get("Job_Title", "")).strip().lower() == job_title.strip().lower()
+                    and str(r.get("Status", "")).strip() == "Active"
+                    and str(r.get("Resignation_Status", "")).strip() in ("Submitted", "Approved")):
+                res_date = str(r.get("Planned_Resignation_Date", "")).strip()
+                if res_date:
+                    try:
+                        dt = datetime.strptime(res_date, "%d/%m/%Y")
+                        if dt <= cutoff:
+                            upcoming.append({
+                                "code": str(r.get("Emp_Code", "")),
+                                "name": str(r.get("Full_Name", "")),
+                                "date": res_date,
+                            })
+                    except ValueError:
+                        pass
+    except Exception:
+        pass
+
+    if available + len(upcoming) >= num:
+        names = ", ".join(f"{v['name']} ({v['date']})" for v in upcoming)
+        return True, (
+            f"⚠️ Department currently at {current}/{max_allowed}, "
+            f"but {len(upcoming)} employee(s) have planned resignations: {names}. "
+            f"You can proceed with a replacement request."
+        ), upcoming
+
+    return False, (
+        f"❌ Cannot submit. Department headcount: {current}/{max_allowed} (full). "
+        f"No planned resignations found to justify replacement. "
+        f"Contact HR if you believe this is incorrect."
+    ), []
+
+
 def _ensure_tab(tab_name, headers):
     """Get or create a worksheet with given headers."""
     try:
@@ -181,7 +257,9 @@ def _get_or_create_sheets():
         "Salary_Range", "Special_Requirements",
         "HR_Status", "HR_Date", "HR_Notes", "Scheduled_Headcount",
         "Director_Status", "Director_Date", "Director_Notes",
-        "Final_Status", "Job_Posting_ID", "Created_At"
+        "Final_Status", "Job_Posting_ID",
+        "Current_Status", "Last_Update", "Positions_Filled", "Total_Requested",
+        "Reason", "Replacement_For", "Created_At"
     ])
     _ensure_tab(TAB_JOB_POSTINGS, [
         "Posting_ID", "HR_Request_ID", "Date", "Position_Title", "Department",
@@ -201,6 +279,44 @@ def _get_or_create_sheets():
     _ensure_tab(TAB_ONBOARDING, [
         "Emp_Code", "Candidate_ID", "Item", "Status", "Date_Completed", "Notes"
     ])
+    hc_ws = _ensure_tab("Department_Headcount", [
+        "Department", "Job_Title", "Max_Allowed", "Current_Count", "Available_Slots"
+    ])
+    # Populate headcount defaults if tab is empty (only headers)
+    try:
+        if len(hc_ws.get_all_values()) <= 1:
+            defaults = [
+                ["Egyptian Kitchen", "Head Chef", 1],
+                ["Egyptian Kitchen", "Cook", 25],
+                ["Egyptian Kitchen", "Shift Supervisor", 4],
+                ["Russian Kitchen", "Head Chef", 1],
+                ["Russian Kitchen", "Cook", 15],
+                ["Warehouse", "Warehouse Manager", 1],
+                ["Warehouse", "Warehouse Supervisor", 2],
+                ["Warehouse", "Store Keeper", 6],
+                ["Quality Control", "Quality Manager", 1],
+                ["Quality Control", "Quality Specialist", 12],
+                ["Translation", "Translation Manager", 1],
+                ["Translation", "Translator", 5],
+                ["Operations", "Operations Manager", 1],
+                ["Operations", "Operations Specialist", 3],
+                ["Operations", "Operations Coordinator", 3],
+                ["Packaging & Delivery", "Packaging Manager", 1],
+                ["Packaging & Delivery", "Packaging Specialist", 8],
+                ["Purchasing", "Supply Manager", 1],
+                ["Purchasing", "Supply Specialist", 3],
+                ["Housing", "Housing Manager", 1],
+                ["Housing", "Housing Specialist", 4],
+                ["Safety", "Safety Manager", 1],
+                ["Transportation", "Transport Manager", 1],
+                ["Transportation", "Driver", 15],
+                ["HR", "HR Manager", 1],
+                ["HR", "HR Specialist", 5],
+            ]
+            for row in defaults:
+                hc_ws.append_row(row, value_input_option="USER_ENTERED")
+    except Exception:
+        pass
 
 
 def _next_id(tab_name, prefix, col=0):
@@ -397,8 +513,25 @@ async def recv_hr_num(update, context):
     q = update.callback_query; await q.answer()
     num = q.data.replace("rec_num_", "")
     context.user_data["rec_req"]["num_positions"] = num
+
+    # Smart headcount validation
+    dept = context.user_data["rec_req"].get("department", "")
+    title = context.user_data["rec_req"].get("position_title", "")
+    allowed, msg, upcoming = _check_headcount(dept, title, num)
+
+    if not allowed:
+        await q.edit_message_text(
+            f"📋 Headcount Check\n{'─' * 28}\n\n{msg}",
+            reply_markup=_back("menu_recruitment"))
+        return ConversationHandler.END
+
+    if upcoming:
+        context.user_data["rec_req"]["replacement_vacancies"] = upcoming
+        context.user_data["rec_req"]["reason"] = "Replacement"
+
+    headcount_note = f"\n\n📊 {msg}" if "Headcount" in msg or "⚠️" in msg else ""
     kb = InlineKeyboardMarkup([[InlineKeyboardButton(p, callback_data=f"rec_pri_{p}") for p in PRIORITIES]])
-    await q.edit_message_text("Step 3/10 — Priority?", reply_markup=kb)
+    await q.edit_message_text(f"Step 3/10 — Priority?{headcount_note}", reply_markup=kb)
     return REC_HR_PRIORITY
 
 
@@ -483,6 +616,12 @@ async def recv_hr_special(update, context):
     val = update.message.text.strip()
     req = context.user_data["rec_req"]
     req["special_req"] = "" if val.lower() == "skip" else val
+    # Headcount info for summary
+    hc_line = ""
+    vacancies = req.get("replacement_vacancies", [])
+    if vacancies:
+        vac_names = ", ".join(f"{v['name']} ({v['date']})" for v in vacancies)
+        hc_line = f"\n📊 Replacement for: {vac_names}"
     summary = (
         f"📋 New Hiring Request — Summary\n{'─'*30}\n"
         f"Position:   {req['position_title']}\n"
@@ -494,7 +633,7 @@ async def recv_hr_special(update, context):
         f"Location:   {req['work_location']}\n"
         f"Start:      {req['required_start_date']}\n"
         f"Salary:     {req.get('salary_range') or '—'}\n"
-        f"Justification:\n{req['justification'][:200]}"
+        f"Justification:\n{req['justification'][:200]}{hc_line}"
     )
     kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Submit", callback_data="rec_req_submit"),
@@ -519,6 +658,9 @@ async def recv_hr_confirm(update, context):
 
     _get_or_create_sheets()
     ws = get_sheet(TAB_HIRING_REQUESTS)
+    vacancies = req.get("replacement_vacancies", [])
+    reason = req.get("reason", "Expansion")
+    replacement_for = ", ".join(v["code"] for v in vacancies) if vacancies else ""
     ws.append_row([
         req_id, now, ec, emp.get("Full_Name", ec),
         dept, req["position_title"], req["num_positions"], req["priority"],
@@ -527,8 +669,10 @@ async def recv_hr_confirm(update, context):
         req.get("salary_range", ""), req.get("special_req", ""),
         "Pending_HR", "", "", current_hc,
         "Pending", "", "",
-        "Requested", "", now
-    ])
+        "Requested", "",
+        "Searching", now, "0", req["num_positions"],
+        reason, replacement_for, now
+    ], value_input_option="USER_ENTERED")
 
     # Generate requisition PDF and attach
     try:

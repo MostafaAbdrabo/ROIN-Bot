@@ -1433,7 +1433,9 @@ async def tr_tm_assign(update, context):
                 pass
             pdf_bytes = generate_transport_request_pdf(pdf_data)
             from drive_utils import upload_and_archive
-            final_url = upload_and_archive(pdf_bytes, f"{req_id}_final.pdf",
+            from drive_utils import make_pdf_filename
+            t_fn = make_pdf_filename("transport", req_id, pdf_data.get("emp_code", ""))
+            final_url = upload_and_archive(pdf_bytes, t_fn,
                                            "transport_requests",
                                            emp_code=pdf_data.get("emp_code", ""),
                                            emp_name=pdf_data.get("emp_name", ""))
