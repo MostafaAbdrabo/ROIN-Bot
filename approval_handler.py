@@ -330,10 +330,12 @@ async def _send_final_pdfs(context, rn, rd, rid, ec, lt, chain, now, bm_approver
             except Exception:
                 pass
 
-        # Upload PDFs to Drive
-        from drive_utils import upload_to_drive as drive_upload
-        cert_url  = drive_upload(cert_bytes,  f"LeaveApproval_{rid}.pdf",          "leave_approvals")
-        order_url = drive_upload(order_bytes, f"LeaveOrder_{order_num}_{ec}.pdf",  "leave_orders") if order_bytes else None
+        # Upload PDFs to Drive (approved → also archive to employee folder)
+        from drive_utils import upload_and_archive
+        cert_url  = upload_and_archive(cert_bytes, f"LeaveApproval_{rid}.pdf",
+                                       "leave_approvals", emp_code=ec, emp_name=emp_name)
+        order_url = upload_and_archive(order_bytes, f"LeaveOrder_{order_num}_{ec}.pdf",
+                                       "leave_orders", emp_code=ec, emp_name=emp_name) if order_bytes else None
 
         # Save Drive links back to Leave_Log so they appear in Requests menu
         if cert_url:

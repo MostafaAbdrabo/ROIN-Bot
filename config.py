@@ -201,7 +201,37 @@ DRIVE_FOLDERS = {
 
 
 # ---------------------------------------------------------------------------
-# 7. HELPER — get any tab as a worksheet object
+# 7. EMPLOYEE DRIVE FOLDERS
+# ---------------------------------------------------------------------------
+EMPLOYEE_FOLDERS_PARENT = "14hfkfjC-9qu8KrvAhFZw8a5H1JN8FgXx"
+
+
+# ---------------------------------------------------------------------------
+# 8. STANDARDISED PDF FILENAME PREFIXES
+# ---------------------------------------------------------------------------
+FILENAME_PREFIXES = {
+    "Paid": "LEAVE", "Sick": "LEAVE", "Emergency": "LEAVE",
+    "Unpaid": "LEAVE", "Business_Trip": "LEAVE",
+    "Missing_Punch": "LEAVE", "Early_Departure": "LEAVE",
+    "Overtime_Planned": "LEAVE", "Overtime_Emergency": "LEAVE",
+    "rasporya": "RASPORYA", "memo": "MEMO", "warning": "WARNING",
+    "deduction": "DEDUCTION", "bonus": "BONUS", "advance": "ADVANCE",
+    "evaluation": "EVAL", "certificate": "CERT", "jd": "JD",
+    "clearance": "CLEARANCE", "purchase": "PURCHASE",
+    "delivery_confirm": "DELCONF", "translation": "TRANSLATION",
+    "stock_in": "STOCK-IN", "stock_out": "STOCK-OUT",
+    "waste": "WASTE", "transfer": "TRANSFER",
+    "material_inspection": "INSPECTION", "kitchen_inspection": "KITCHEN-INSP",
+    "meal_test": "MEAL-TEST", "housing_assign": "HOUSING",
+    "housing_vacate": "HOUSING", "housing_maintenance": "MAINTENANCE",
+    "housing_complaint": "HOUSING", "delivery_assignment": "DELIVERY",
+    "packaging_report": "PACKAGING", "transport": "TRANSPORT",
+    "recruitment": "RECRUIT", "ops_report": "OPS-REPORT",
+}
+
+
+# ---------------------------------------------------------------------------
+# 9. HELPER — get any tab as a worksheet object
 # ---------------------------------------------------------------------------
 def get_sheet(tab_name):
     return WORKBOOK.worksheet(tab_name)

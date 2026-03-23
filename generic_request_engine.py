@@ -719,7 +719,13 @@ def _build_handlers_for_type(cfg):
 
                 pdf_bytes = _generate_request_pdf(cfg, rd_fresh, headers, extra_sigs=sigs)
                 folder = cfg.get("pending_folder", "in_process") if not is_final else cfg.get("approved_folder", cfg.get("pending_folder", "in_process"))
-                pdf_url = upload_to_drive(pdf_bytes, f"{req_id}_stage{approved_stage}.pdf", folder)
+                if is_final:
+                    from drive_utils import upload_and_archive
+                    sub_ec = rd_fresh[headers.index("Emp_Code")].strip() if "Emp_Code" in headers else ""
+                    pdf_url = upload_and_archive(pdf_bytes, f"{req_id}_stage{approved_stage}.pdf", folder,
+                                                 emp_code=sub_ec)
+                else:
+                    pdf_url = upload_to_drive(pdf_bytes, f"{req_id}_stage{approved_stage}.pdf", folder)
                 if pdf_url:
                     try:
                         pl_col = headers.index("PDF_Drive_Link")

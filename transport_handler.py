@@ -1432,8 +1432,11 @@ async def tr_tm_assign(update, context):
             except Exception:
                 pass
             pdf_bytes = generate_transport_request_pdf(pdf_data)
-            final_url = upload_to_drive(pdf_bytes, f"{req_id}_final.pdf",
-                                        "transport_requests")
+            from drive_utils import upload_and_archive
+            final_url = upload_and_archive(pdf_bytes, f"{req_id}_final.pdf",
+                                           "transport_requests",
+                                           emp_code=pdf_data.get("emp_code", ""),
+                                           emp_name=pdf_data.get("emp_name", ""))
             if final_url:
                 _update_trip(rn, TC.DRIVE_LINK, final_url)
     except Exception as e:

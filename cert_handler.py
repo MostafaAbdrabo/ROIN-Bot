@@ -243,8 +243,9 @@ async def cert_emp_lang_sel(update, context):
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Back", callback_data="menu_certificates"), bm()]])); return ConversationHandler.END
         pdf_bytes = _generate_employment_cert(emp, lang)
         filename  = f"{ec}-Employment-{datetime.now().strftime('%d%m%Y')}.pdf"
-        from drive_utils import upload_to_drive
-        drive_url = upload_to_drive(pdf_bytes, filename, "certificates")
+        from drive_utils import upload_and_archive
+        drive_url = upload_and_archive(pdf_bytes, filename, "certificates",
+                                       emp_code=ec, emp_name=emp.get("Full_Name", ""))
         if drive_url:
             await q.edit_message_text(
                 f"✅ Certificate generated!\nLanguage: {LANG_LABELS.get(lang, lang)}",

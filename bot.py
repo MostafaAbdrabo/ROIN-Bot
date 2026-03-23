@@ -67,6 +67,8 @@ from transport_handler import (get_transport_handlers, get_transport_static_hand
 from generic_request_engine import build_all_request_handlers
 from task_handler import get_task_handlers, get_task_static_handlers, check_overdue_tasks
 from employee_reports_handler import get_reports_static_handlers
+from employee_files_handler import get_emp_files_handlers, get_emp_files_static_handlers
+from bulk_export_handler import get_bulk_export_handlers
 
 W_CODE = 0; W_PASS = 1
 
@@ -76,7 +78,7 @@ MENU_EMPLOYEE = [
     [("🕐 Attendance", "menu_my_attendance"), ("👤 My Profile", "menu_my_profile")],
     [("📜 Certificates", "menu_certificates"), ("💬 Contact HR", "menu_contact_hr")],
     [("🚗 Request Vehicle", "menu_transport"), ("🏠 My Housing", "menu_housing")],
-    [("🤝 Refer a Candidate", "rec_refer")],
+    [("📁 My Documents", "my_documents"), ("🤝 Refer a Candidate", "rec_refer")],
     [("📬 Bot Feedback", "menu_bot_feedback"), ("❓ Help", "menu_help")],
 ]
 MENU_SUPERVISOR = [
@@ -106,7 +108,7 @@ MENU_HR_STAFF = [
     [("🕐 Attendance", "menu_my_attendance"), ("👥 My Team", "menu_team")],
     [("📄 Job Descriptions", "menu_jd"), ("🛠️ HR Tools", "menu_hr_tools")],
     [("💬 HR Messages", "menu_hr_messages"), ("👔 Recruitment", "menu_recruitment")],
-    [("🔍 Search Documents", "menu_search")],
+    [("📁 Employee Files", "emp_files_menu"), ("🔍 Search Documents", "menu_search")],
     [("👤 My Profile", "menu_my_profile"), ("❓ Help", "menu_help")],
 ]
 MENU_HR_MANAGER = [
@@ -117,6 +119,7 @@ MENU_HR_MANAGER = [
     [("🛠️ HR Tools", "menu_hr_tools"), ("⚙️ Admin", "menu_admin")],
     [("📅 Monthly Schedule", "menu_schedule"), ("💬 HR Messages", "menu_hr_messages")],
     [("👔 Recruitment", "menu_recruitment"), ("📬 Bot Feedback", "menu_bot_feedback")],
+    [("📁 Employee Files", "emp_files_menu"), ("📚 Bulk PDF Export", "bulk_export_menu")],
     [("🔍 Search Documents", "menu_search")],
     [("👤 My Profile", "menu_my_profile"), ("❓ Help", "menu_help")],
 ]
@@ -127,6 +130,7 @@ MENU_DIRECTOR = [
     [("📊 Morning Brief", "menu_director_brief"), ("✅ Batch Approvals", "menu_batch_approvals")],
     [("📅 Monthly Schedule", "menu_schedule"), ("🚗 Fleet / Vehicles", "menu_vehicles")],
     [("👔 Recruitment", "menu_recruitment"), ("📬 Bot Feedback", "menu_bot_feedback")],
+    [("📁 Employee Files", "emp_files_menu"), ("📚 Bulk PDF Export", "bulk_export_menu")],
     [("🔍 Search Documents", "menu_search")],
     [("👤 My Profile", "menu_my_profile"), ("❓ Help", "menu_help")],
 ]
@@ -662,6 +666,8 @@ async def bm_hr_handler(update, context):
         [InlineKeyboardButton("💰 Payroll Input",    callback_data="menu_payroll")],
         [InlineKeyboardButton("📂 Doc & Contracts",  callback_data="menu_doc_contracts")],
         [InlineKeyboardButton("📜 Certificates",     callback_data="menu_certificates")],
+        [InlineKeyboardButton("📁 Employee Files",   callback_data="emp_files_menu")],
+        [InlineKeyboardButton("📚 Bulk PDF Export",   callback_data="bulk_export_menu")],
         [InlineKeyboardButton("↩️ Back", callback_data="back_to_menu"), _bm()],
     ])
     await q.edit_message_text("🏖️ Leave & HR\n\nSelect area:", reply_markup=kb)
@@ -994,6 +1000,11 @@ async def main():
 
     # Phase 34 — Employee Self-Reports (Section 15)
     for h in get_reports_static_handlers(): app.add_handler(h)
+
+    # Phase 35 — Employee Files + Bulk PDF Export
+    for h in get_emp_files_handlers(): app.add_handler(h)
+    for h in get_emp_files_static_handlers(): app.add_handler(h)
+    for h in get_bulk_export_handlers(): app.add_handler(h)
 
     # Bot_Manager sub-menu handlers
     app.add_handler(CallbackQueryHandler(bm_hr_handler,         pattern="^bm_hr$"))
